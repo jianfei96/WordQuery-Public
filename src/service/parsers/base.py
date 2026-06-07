@@ -42,3 +42,6 @@ class DictParser:
 
     def fld_example(self, raw_html):
         return ''
+
+    def tts_sentences(self, raw_html):
+        return re.findall(r'<i>([^<]+)</i>', raw_html)

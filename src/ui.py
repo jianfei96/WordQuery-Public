@@ -73,6 +73,20 @@ class ParasDialog(QDialog):
         ffmpeg_save_btn.clicked.connect(self._save_ffmpeg)
         layout.addWidget(ffmpeg_save_btn)
 
+        layout.addWidget(QLabel("TTS voice (macOS: Samantha/Daniel, edge-tts: en-US-AriaNeural):"))
+        self.tts_edit = QLineEdit(config.tts_voice)
+        self.tts_edit.setPlaceholderText("Default: Samantha (macOS) / en-US-AriaNeural (edge-tts)")
+        layout.addWidget(self.tts_edit)
+
+        layout.addWidget(QLabel("TTS source field name:"))
+        self.tts_source_edit = QLineEdit(config.tts_source_field)
+        self.tts_source_edit.setPlaceholderText("Default: example_en")
+        layout.addWidget(self.tts_source_edit)
+
+        tts_save_btn = QPushButton("Save TTS settings")
+        tts_save_btn.clicked.connect(self._save_tts)
+        layout.addWidget(tts_save_btn)
+
         layout.setAlignment(Qt.AlignmentFlag.AlignTop|Qt.AlignmentFlag.AlignLeft)
         self.setLayout(layout)
 
@@ -83,6 +97,12 @@ class ParasDialog(QDialog):
 
     def _save_ffmpeg(self):
         config.update({'ffmpeg_path': self.ffmpeg_edit.text().strip()})
+
+    def _save_tts(self):
+        config.update({
+            'tts_voice': self.tts_edit.text().strip(),
+            'tts_source_field': self.tts_source_edit.text().strip(),
+        })
 
 
 class FoldersManageDialog(QDialog):

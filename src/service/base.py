@@ -163,8 +163,9 @@ class Service(object):
         sorted_flds = sorted(flds)
         return [flds[key] for key in sorted_flds]
 
-    def active(self, action_label, word):
+    def active(self, action_label, word, note_fields=None):
         self.word = word
+        self.note_fields = note_fields or {}
         if isinstance(self, LocalService):
             self.notify(MapDict(type='text', index=self.work_id,
                                 text=u'Building %s...' % self._filename))
@@ -386,6 +387,89 @@ class MdxService(LocalService):
             if not os.path.exists(dst):
                 self._extract_mdd_file(first_sound, dst)
             return u'[sound:_{}]'.format(src_filename)
+
+    @export(u"tts", 8)
+    def fld_tts(self):
+        source_field = config.tts_source_field or 'example_en'
+        source_text = self.note_fields.get(source_field, '') if self.note_fields else ''
+        if not source_text:
+            return ''
+        text = re.sub(r'<[^>]+>', ' ', source_text)
+        sentences = [s.strip() for s in text.split('\n') if s.strip()]
+        sentences = [s.strip() for s in '. '.join(sentences).split('.') if s.strip()]
+        if not sentences:
+            return ''
+        tts_text = '. '.join(sentences[:2]) + '.'
+        if not tts_text.strip('.') :
+            return ''
+        media_dir = mw.col.media.dir()
+        safe_word = re.sub(r'[^\w]', '_', self.word.lower())[:50]
+        mp3_name = 'tts_{}.mp3'.format(safe_word)
+        dst = os.path.join(media_dir, u'_' + mp3_name)
+        if not os.path.exists(dst):
+            self._generate_tts(tts_text, dst)
+        if os.path.exists(dst) and os.path.getsize(dst) > 0:
+            return u'[sound:_{}]'.format(mp3_name)
+        return ''
+
+    def _generate_tts(self, text, output_path):
+        if self._tts_edge(text, output_path):
+            return True
+        return self._tts_say(text, output_path)
+
+    def _tts_say(self, text, output_path):
+        if platform.system() != 'Darwin':
+            return False
+        voice = config.tts_voice or 'Samantha'
+        import tempfile
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt',
+                                              delete=False, encoding='utf-8') as f:
+                f.write(text)
+                txt_path = f.name
+            with tempfile.NamedTemporaryFile(suffix='.aiff', delete=False) as f:
+                aiff_path = f.name
+            subprocess.run(
+                ['say', '-v', voice, '-o', aiff_path, '-f', txt_path],
+                capture_output=True, timeout=10
+            )
+            if not os.path.exists(aiff_path) or os.path.getsize(aiff_path) == 0:
+                return False
+            ffmpeg = find_ffmpeg()
+            if ffmpeg:
+                subprocess.run(
+                    [ffmpeg, '-y', '-i', aiff_path,
+                     '-acodec', 'libmp3lame', '-q:a', '2', output_path],
+                    capture_output=True, timeout=10
+                )
+            else:
+                shutil.move(aiff_path, output_path)
+            return os.path.exists(output_path) and os.path.getsize(output_path) > 0
+        except Exception:
+            return False
+        finally:
+            for p in (txt_path, aiff_path):
+                try:
+                    if os.path.exists(p):
+                        os.unlink(p)
+                except Exception:
+                    pass
+
+    def _tts_edge(self, text, output_path):
+        voice = config.tts_voice or 'en-US-AriaNeural'
+        if ' ' in voice or '-' not in voice:
+            voice = 'en-US-AriaNeural'
+        try:
+            subprocess.run(
+                ['edge-tts', '--voice', voice, '--text', text,
+                 '--write-media', output_path],
+                capture_output=True, timeout=15
+            )
+            return os.path.exists(output_path) and os.path.getsize(output_path) > 0
+        except FileNotFoundError:
+            return False
+        except Exception:
+            return False
 
     def _convert_audio(self, src_path, dst_path):
         ffmpeg = find_ffmpeg()

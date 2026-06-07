@@ -59,6 +59,15 @@ def inspect_note(note):
     return word_ord, word, maps
 
 
+def _note_fields_dict(note):
+    result = {}
+    model = note.model()
+    for i, fld in enumerate(model['flds']):
+        if i < len(note.fields):
+            result[fld['name']] = note.fields[i]
+    return result
+
+
 def query_from_browser(browser):
     if not browser:
         return
@@ -219,6 +228,7 @@ def query_all_flds(note):
     if not word:
         raise InvalidWordException
     progress.update_title(u'Querying [[ %s ]]' % word)
+    note_fields = _note_fields_dict(note)
     for i, each in enumerate(maps):
         if i == word_ord:
             continue
@@ -229,7 +239,7 @@ def query_all_flds(note):
         dict_unique = each.get('dict_unique', '').strip()
         if dict_name and dict_name not in _sl('NOT_DICT_FIELD') and dict_field:
             worker = work_manager.get_worker(dict_unique)
-            worker.target(i, dict_field, word)
+            worker.target(i, dict_field, word, note_fields)
     work_manager.start_all_workers()
 
 
@@ -240,15 +250,15 @@ def query_single_fld(note, fld_index):
     if not word:
         raise InvalidWordException
     progress.update_title(u'Querying [[ %s ]]' % word)
-    # assert fld_index > 0
     if fld_index >= len(maps):
         return QueryResult()
+    note_fields = _note_fields_dict(note)
     dict_name = maps[fld_index].get('dict', '').strip()
     dict_field = maps[fld_index].get('dict_field', '').strip()
     dict_unique = maps[fld_index].get('dict_unique', '').strip()
     if dict_name and dict_name not in _sl('NOT_DICT_FIELD') and dict_field:
         worker = work_manager.get_worker(dict_unique)
-        worker.target(fld_index, dict_field, word)
+        worker.target(fld_index, dict_field, word, note_fields)
     work_manager.start_all_workers()
 
 
@@ -308,25 +318,18 @@ class QueryWorker(QThread):
         self.result_ready.connect(handle_results)
         self.progress_update.connect(progress.update_labels)
 
-    def target(self, index, service_field, word):
-        self.queue.put((index, service_field, word))
+    def target(self, index, service_field, word, note_fields=None):
+        self.queue.put((index, service_field, word, note_fields))
 
     def run(self):
-        # self.completed_counts = 0
         while True:
             if progress.abort():
                 break
             try:
-                index, service_field, word = self.queue.get(timeout=0.1)
-                # self.progress_update.emit({
-                #     'service_name': self.service.title,
-                #     'word': word,
-                #     'field_name': service_field
-                # })
-                result = self.query(service_field, word)
+                index, service_field, word, note_fields = self.queue.get(timeout=0.1)
+                result = self.query(service_field, word, note_fields)
                 self.result_ready.emit({index: result})
                 self.completed_counts += 1
-                # rest a moment
                 self.rest()
             except Empty:
                 break
@@ -334,9 +337,9 @@ class QueryWorker(QThread):
     def rest(self):
         time.sleep(self.service.query_interval)
 
-    def query(self, service_field, word):
+    def query(self, service_field, word, note_fields=None):
         self.service.set_notifier(self.progress_update, self.index)
-        return self.service.active(service_field, word)
+        return self.service.active(service_field, word, note_fields=note_fields)
 
 
 progress = ProgressManager(mw)

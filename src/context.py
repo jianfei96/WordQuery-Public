@@ -92,5 +92,13 @@ class Config(object):
     def ffmpeg_path(self):
         return self.data.get('ffmpeg_path', '')
 
+    @property
+    def tts_voice(self):
+        return self.data.get('tts_voice', '')
+
+    @property
+    def tts_source_field(self):
+        return self.data.get('tts_source_field', 'example_en')
+
 
 config = Config(mw)
