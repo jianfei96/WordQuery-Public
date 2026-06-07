@@ -1,0 +1,8 @@
+{
+    "name": "Word Query",
+    "package": "WordQuery",
+    "anki_version": "25.09",
+    "author": "WordQuery Contributors",
+    "description": "Look up words in local and web dictionaries, with audio extraction and pluggable MDX parsers",
+    "homepage": "https://github.com/jianfei96/WordQuery"
+}
